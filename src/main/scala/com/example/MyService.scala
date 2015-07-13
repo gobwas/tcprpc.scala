@@ -1,9 +1,11 @@
 package com.example
 
 import akka.actor.Actor
+import lite.{Success, TCPClient}
 import spray.routing._
 import spray.http._
 import MediaTypes._
+import org.json4s.JsonAST._
 
 // we don't implement our route structure directly in the service actor because
 // we want to be able to test it independently, without having to spin up an actor
@@ -23,17 +25,19 @@ class MyServiceActor extends Actor with MyService {
 // this trait defines our service behavior independently from the service actor
 trait MyService extends HttpService {
 
+  val client = new TCPClient("127.0.0.1", 3000)
+
   val myRoute =
-    path("") {
+    path("render" / Segment / Segment) { (template, user) =>
       get {
+        val resp: String = client.request("render", JArray(List(JString(template), JObject(List(JField("name", JString(user))))))) match {
+          case resp: Success => resp.result;
+          case resp: lite.Error => resp.error.message;
+          case _ => "Unknown"
+        }
+
         respondWithMediaType(`text/html`) { // XML is marshalled to `text/xml` by default, so we simply override here
-          complete {
-            <html>
-              <body>
-                <h1>Say hello to <i>spray-routing</i> on <i>spray-can</i>!</h1>
-              </body>
-            </html>
-          }
+          complete(resp)
         }
       }
     }

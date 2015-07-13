@@ -19,4 +19,7 @@ libraryDependencies ++= {
   )
 }
 
+libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.2.11"
+
 Revolver.settings
+
