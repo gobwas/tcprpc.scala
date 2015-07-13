@@ -4,8 +4,10 @@ import java.io.{OutputStream, InputStream}
 import java.net.Socket
 import java.util.concurrent.{ConcurrentLinkedQueue, TimeUnit, ConcurrentHashMap}
 import org.json4s.JsonAST.JArray
+import org.json4s.jackson.JsonMethods._
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Promise}
+import akka.actor._
 
 case class Request(id: String, method: String, params: JArray)
 
@@ -74,22 +76,33 @@ class SocketReader(stream: InputStream, responses: ConcurrentHashMap[String, Pro
   }
 }
 
-class SocketWriter(stream: OutputStream, queue: ConcurrentLinkedQueue[Request]) extends Runnable {
-  def run(): Unit = {
-    import org.json4s.JsonDSL._
-    import org.json4s.jackson.JsonMethods._
+//class SocketWriter(stream: OutputStream, queue: ConcurrentLinkedQueue[Request]) extends Runnable {
+//  def run(): Unit = {
+//    import org.json4s.JsonDSL._
+//    import org.json4s.jackson.JsonMethods._
+//
+//    def fetch(): Unit = {
+//      if (!queue.isEmpty) {
+//        val req = queue.remove()
+//        stream.write(compact(("id" -> req.id) ~ ("topic" -> req.method) ~ ("params" -> req.params)).getBytes)
+//        stream.write('\n'.toByte)
+//      }
+//
+//      fetch()
+//    }
+//
+//    fetch()
+//  }
+//}
 
-    def fetch(): Unit = {
-      if (!queue.isEmpty) {
-        val req = queue.remove()
-        stream.write(compact(("id" -> req.id) ~ ("topic" -> req.method) ~ ("params" -> req.params)).getBytes)
-        stream.write('\n'.toByte)
-      }
+class WritingActor(stream: OutputStream) extends Actor {
+  import org.json4s.JsonDSL._
 
-      fetch()
+  def receive = {
+    case req: Request => {
+      stream.write(compact(("id" -> req.id) ~ ("topic" -> req.method) ~ ("params" -> req.params)).getBytes)
+      stream.write('\n'.toByte)
     }
-
-    fetch()
   }
 }
 
@@ -101,20 +114,25 @@ class TCPClient(host: String, port: Int) extends Client {
   private val socket = new Socket(host, port)
 
   private val responses = new ConcurrentHashMap[String, Promise[Response]]()
-  private val requests = new ConcurrentLinkedQueue[Request]
+//  private val requests = new ConcurrentLinkedQueue[Request]
 
   val reader = new Thread(new SocketReader(socket.getInputStream, responses))
-  val writer = new Thread(new SocketWriter(socket.getOutputStream, requests))
+//  val writer = new Thread(new SocketWriter(socket.getOutputStream, requests))
+
+  val system = ActorSystem("write")
+  val writer = system.actorOf(Props(new WritingActor(socket.getOutputStream)), name = "writer")
 
   reader.start()
-  writer.start()
+//  writer.start()
 
   def request(method: String, params: JArray): Response = {
     val requestId = java.util.UUID.randomUUID().toString
     val p = Promise[Response]()
 
     responses.put(requestId, p)
-    requests.add(Request(requestId, method, params))
+
+    writer ! Request(requestId, method, params)
+//    requests.add(Request(requestId, method, params))
 
     Await.result(p.future, Duration.create(5000, TimeUnit.MILLISECONDS))
   }
