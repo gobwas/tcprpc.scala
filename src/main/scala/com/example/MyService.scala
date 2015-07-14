@@ -18,26 +18,40 @@ class MyServiceActor extends Actor with MyService {
   // this actor only runs our route, but you could add
   // other things here, like request stream processing
   // or timeout handling
-  def receive = runRoute(myRoute)
+  def receive = runRoute(route)
 }
 
 
 // this trait defines our service behavior independently from the service actor
 trait MyService extends HttpService {
 
-  val client = new TCPClient("127.0.0.1", 3000)
+//  val client = new TCPClient("127.0.0.1", 3000)
 
-  val myRoute =
-    path("render" / Segment / Segment) { (template, user) =>
+  val route =
+//    path("render" / Segment / Segment) { (template, user) =>
+//      get {
+//        val resp: String = client.request("render", JArray(List(JString(template), JObject(List(JField("name", JString(user))))))) match {
+//          case resp: Success => resp.result;
+//          case resp: lite.Error => resp.error.message;
+//          case _ => "Unknown"
+//        }
+//
+//        respondWithMediaType(`text/html`) {
+//          complete(resp)
+//        }
+//      }
+//    } ~
+//    path("greeting" / Segment) { user =>
+//      get {
+//        respondWithMediaType(`text/html`) {
+//          complete("Hello, " + user)
+//        }
+//      }
+//    } ~
+    path("") {
       get {
-        val resp: String = client.request("render", JArray(List(JString(template), JObject(List(JField("name", JString(user))))))) match {
-          case resp: Success => resp.result;
-          case resp: lite.Error => resp.error.message;
-          case _ => "Unknown"
-        }
-
-        respondWithMediaType(`text/html`) { // XML is marshalled to `text/xml` by default, so we simply override here
-          complete(resp)
+        respondWithMediaType(`text/html`) {
+          complete("Hello World!")
         }
       }
     }
